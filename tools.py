@@ -10,8 +10,8 @@ can't tell which layer is lying to you.
     suggest_outfit(new_item, wardrobe)             → str
     create_fit_card(outfit, new_item)              → str
 
-All three are stubs right now. They run and they do nothing — that's the
-starting position and it's deliberate.
+Each tool is implemented as a standalone function. Test them independently
+before wiring them into the planning loop.
 
 ⚠️ Before you write any of them, fill in the **Tool Inventory** section of your
 README (Milestone 2). Four lines per tool: what it does, each input with its
@@ -20,9 +20,24 @@ That last line is what your loop branches on. "Returns a list" earns nothing —
 the description has to say what is *in* the list.
 """
 
-import config  # noqa: F401 — you'll use this in search_listings
+import re
+
+import config
 from generate import generate
 from utils.data_loader import load_listings
+
+
+_STOP_WORDS = {
+    "a", "an", "and", "are", "for", "i", "in", "is", "it", "looking",
+    "me", "my", "of", "on", "please", "the", "to", "want", "with",
+}
+
+
+def _tokens(value: str) -> set[str]:
+    return {
+        token for token in re.findall(r"[a-z0-9]+", value.lower())
+        if token not in _STOP_WORDS
+    }
 
 
 # ── Tool 1: search_listings ───────────────────────────────────────────────────
@@ -78,8 +93,38 @@ def search_listings(
     Test it from a terminal before you move on:
         python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
     """
-    # TODO: replace this with your implementation
-    return []
+    query_tokens = _tokens(description)
+    if not query_tokens:
+        return []
+
+    matches = []
+    for listing in load_listings():
+        if max_price is not None and listing.get("price", float("inf")) > max_price:
+            continue
+
+        if size:
+            requested_size = _tokens(size)
+            listing_size = _tokens(str(listing.get("size", "")))
+            if not requested_size.issubset(listing_size):
+                continue
+
+        title_tokens = _tokens(str(listing.get("title", "")))
+        tag_tokens = _tokens(" ".join(listing.get("style_tags", [])))
+        other_text = " ".join(
+            str(listing.get(field, ""))
+            for field in ("description", "category", "colors", "brand")
+        )
+        other_tokens = _tokens(other_text)
+        score = (
+            3 * len(query_tokens & title_tokens)
+            + 2 * len(query_tokens & tag_tokens)
+            + len(query_tokens & other_tokens)
+        )
+        if score:
+            matches.append((score, listing))
+
+    matches.sort(key=lambda match: match[0], reverse=True)
+    return [listing for _, listing in matches[: config.SEARCH_RESULT_LIMIT]]
 
 
 # ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
@@ -112,8 +157,32 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
     Test it from a terminal before you move on:
         python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
     """
-    # TODO: replace this with your implementation
-    return ""
+    title = new_item.get("title", "this item")
+    wardrobe_items = wardrobe.get("items", [])
+    if wardrobe_items:
+        wardrobe_text = "\n".join(
+            f"- {item.get('name', 'Wardrobe item')}: "
+            f"{item.get('category', '')}, colors {item.get('colors', [])}, "
+            f"styles {item.get('style_tags', [])}, notes {item.get('notes', '')}"
+            for item in wardrobe_items
+        )
+        prompt = (
+            f"Suggest one or two wearable outfits using this thrift find and "
+            f"specific pieces from the user's wardrobe. Name the pieces you use.\n"
+            f"Thrift find: {new_item}\nWardrobe:\n{wardrobe_text}"
+        )
+    else:
+        prompt = (
+            f"Suggest one or two general ways to style this thrift find. The "
+            f"user has an empty wardrobe saved, so do not claim they own any "
+            f"specific pieces.\nThrift find: {new_item}"
+        )
+
+    suggestion = generate(
+        prompt,
+        system="Give practical, specific outfit advice in a friendly, concise tone.",
+    ).strip()
+    return suggestion or f"Try styling {title} with simple pieces that complement its color and silhouette."
 
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
@@ -152,5 +221,18 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
     Test it from a terminal before you move on:
         python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
     """
-    # TODO: replace this with your implementation
-    return ""
+    title = new_item.get("title", "This thrift find")
+    if not outfit or not outfit.strip():
+        return f"{title} is a versatile thrift find worth styling with your wardrobe."
+
+    prompt = (
+        "Write a lively, natural two-to-four sentence social caption about this "
+        "thrift find and the outfit. Mention the item title, price, and platform "
+        "once each. Avoid inventing details.\n"
+        f"Item: {new_item}\nOutfit: {outfit}"
+    )
+    caption = generate(
+        prompt,
+        system="Write concise, specific fashion copy that sounds like a real person.",
+    ).strip()
+    return caption or f"Found {title} for ${new_item.get('price', 'unknown')} on {new_item.get('platform', 'a resale platform')}. {outfit.strip()}"
