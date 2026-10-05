@@ -189,7 +189,7 @@ def write_report(rows, args):
             lines += [
                 f"- stopped early: {'yes — ' + str(session.get('error')) if session.get('error') else 'no'}",
                 f"- selected_item: {item.get('title', '(none)')}"
-                + (f" (${item.get('price')}, {item.get('platform')})" if item else ""),
+                + (f" [id={item.get('id')}] (${item.get('price')}, {item.get('platform')})" if item else ""),
                 f"- search_results: {len(session.get('search_results') or [])}",
                 "",
             ]

@@ -29,13 +29,15 @@ import config
 
 _lines: list[str] = []
 _step_number = 0
+_enabled = False
 
 
-def start_trace() -> None:
+def start_trace(enabled: bool = True) -> None:
     """Clear the trace. Call this at the start of each run."""
-    global _step_number
+    global _step_number, _enabled
     _lines.clear()
     _step_number = 0
+    _enabled = enabled
 
 
 def step(name: str, inputs=None, returned=None, note: str = "") -> None:
@@ -50,6 +52,8 @@ def step(name: str, inputs=None, returned=None, note: str = "") -> None:
         note:     an optional word on why, e.g. "branch: empty, stopping".
     """
     global _step_number
+    if not _enabled:
+        return
     _step_number += 1
 
     line = f"[{_step_number}] {name}"
@@ -76,16 +80,31 @@ def _short(value, limit: int = 110) -> str:
             return "[] (empty)"
         head = value[0]
         if isinstance(head, dict) and "title" in head:
-            titles = ", ".join(str(v.get("title", "?")) for v in value[:3])
+            titles = ", ".join(
+                f"{v.get('title', '?')} [id={v.get('id', '?')}]"
+                for v in value[:3]
+            )
             more = f" … +{len(value) - 3} more" if len(value) > 3 else ""
             return f"{len(value)} items: {titles}{more}"
         return f"{len(value)} items: {str(head)[:60]}…"
 
     if isinstance(value, dict):
         if "title" in value:
-            return f"{value.get('title')} (${value.get('price')}, {value.get('platform')})"
-        keys = ", ".join(list(value)[:6])
-        return f"dict with keys: {keys}"
+            return (
+                f"{value.get('title')} [id={value.get('id', '?')}] "
+                f"(${value.get('price')}, {value.get('platform')})"
+            )
+        parts = []
+        for key, item in list(value.items())[:6]:
+            if isinstance(item, dict) and "title" in item:
+                parts.append(f"{key}: {_short(item, limit)}")
+            elif isinstance(item, dict):
+                keys = ", ".join(list(item)[:6])
+                parts.append(f"{key}: dict with keys: {keys}")
+            else:
+                parts.append(f"{key}: {_short(item, limit // 2)}")
+        text = "{" + ", ".join(parts) + "}"
+        return text if len(text) <= limit else text[:limit] + "…"
 
     text = str(value).replace("\n", " ")
     return text if len(text) <= limit else text[:limit] + "…"

@@ -227,9 +227,15 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
 
     prompt = (
         "Write a lively, natural two-to-four sentence social caption about this "
-        "thrift find and the outfit. Mention the item title, price, and platform "
-        "once each. Avoid inventing details.\n"
-        f"Item: {new_item}\nOutfit: {outfit}"
+        "thrift find and the outfit. Include the listing title, price, and "
+        "platform once each. Copy the complete title exactly as provided; do "
+        "not shorten, paraphrase, or omit any title words. Use the provided "
+        "price and platform values; format the price with a leading dollar "
+        "sign. Do not invent details.\n"
+        f"Listing title: {title}\n"
+        f"Price: {new_item.get('price', 'unknown')}\n"
+        f"Platform: {new_item.get('platform', 'a resale platform')}\n"
+        f"Outfit: {outfit}"
     )
     caption = generate(
         prompt,

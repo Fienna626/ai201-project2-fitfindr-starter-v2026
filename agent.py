@@ -15,7 +15,8 @@ Build and test your three tools in `tools.py` first. Then come here.
 
 import config
 import trace
-from tools import search_listings, suggest_outfit, create_fit_card
+from tools import suggest_outfit, create_fit_card
+from mcp_client import call_tool
 from generate import ModelUnavailable
 import re
 
@@ -107,13 +108,27 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         try:
             if stage == "parse":
                 session["parsed"] = _parse_query(query)
+                trace.step(
+                    "parse_query",
+                    inputs={"query": query},
+                    returned=session["parsed"],
+                )
                 stage = "search"
             elif stage == "search":
                 parsed = session["parsed"]
-                session["search_results"] = search_listings(
-                    parsed["description"], parsed["size"], parsed["max_price"]
-                )
+                search_inputs = {
+                    "description": parsed["description"],
+                    "size": parsed["size"],
+                    "max_price": parsed["max_price"],
+                }
+                session["search_results"] = call_tool("search_listings", search_inputs)
                 if not session["search_results"]:
+                    trace.step(
+                        "search_listings (via MCP)",
+                        inputs=search_inputs,
+                        returned=session["search_results"],
+                        note="empty; stopping before model-backed tools",
+                    )
                     description = parsed["description"] or "a clearer item description"
                     session["error"] = (
                         f"No listings matched '{query}'. Try different keywords "
@@ -121,16 +136,57 @@ def run_agent(query: str, wardrobe: dict) -> dict:
                         "limit or size filter."
                     )
                     return session
+                trace.step(
+                    "search_listings (via MCP)",
+                    inputs=search_inputs,
+                    returned=session["search_results"],
+                )
                 session["selected_item"] = session["search_results"][0]
                 stage = "outfit"
             elif stage == "outfit":
-                session["outfit_suggestion"] = suggest_outfit(
-                    session["selected_item"], session["wardrobe"]
+                outfit_inputs = {
+                    "new_item": session["selected_item"],
+                    "wardrobe": session["wardrobe"],
+                }
+                try:
+                    session["outfit_suggestion"] = suggest_outfit(
+                        session["selected_item"], session["wardrobe"]
+                    )
+                except ModelUnavailable as exc:
+                    trace.step(
+                        "suggest_outfit",
+                        inputs=outfit_inputs,
+                        returned=f"ModelUnavailable: {exc}",
+                        note="model call failed",
+                    )
+                    raise
+                trace.step(
+                    "suggest_outfit",
+                    inputs=outfit_inputs,
+                    returned=session["outfit_suggestion"],
                 )
                 stage = "fit_card"
             elif stage == "fit_card":
-                session["fit_card"] = create_fit_card(
-                    session["outfit_suggestion"], session["selected_item"]
+                fit_card_inputs = {
+                    "outfit": session["outfit_suggestion"],
+                    "new_item": session["selected_item"],
+                }
+                try:
+                    session["fit_card"] = create_fit_card(
+                        session["outfit_suggestion"], session["selected_item"]
+                    )
+                except ModelUnavailable as exc:
+                    trace.step(
+                        "create_fit_card",
+                        inputs=fit_card_inputs,
+                        returned=f"ModelUnavailable: {exc}",
+                        note="model call failed",
+                    )
+                    raise
+                trace.step(
+                    "create_fit_card",
+                    inputs=fit_card_inputs,
+                    returned=session["fit_card"],
                 )
                 stage = "done"
         except ModelUnavailable as exc:

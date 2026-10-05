@@ -214,17 +214,79 @@ TRY 3: Nothing beats a perfectly worn-in band tee. I styled this Graphic Tee —
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. Matching query completes all three tools | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. Impossible query stops before the second tool | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. Selected listing is passed to outfit tool | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4. Fit card has correct item details | 4 of 5 | PASS | PASS | PASS | PASS | FAIL | MET (4/5) |
+| 5. Search respects the price ceiling | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
 
-**Real output from one try**, pasted as text, naming the file and function
-that produced it:
+**Real output from one try**, pasted as text. The excerpts below are from
+`results/run_2026-10-04_0015_before.md`, produced by
+`run_eval.py::write_report`; the captured agent run is
+`agent.py::run_agent`, with trace lines emitted by `trace.py::step`.
+
+**Criterion 1, Try 1**
 
 ```
+- stopped early: no
+- selected_item: Graphic Tee — 2003 Tour Bootleg Style [id=lst_006] ($24.0, depop)
+[2] search_listings (via MCP)
+     in:  {description: vintage graphic tee, size: None, max_price: 30.0}
+     out: 10 items: Graphic Tee — 2003 Tour Bootleg Style [id=lst_006], Vintage Band Tee — Faded Grey [id=lst_033], Vintage Graphic Hoodie — Faded Black [id=lst_015] … +7 more
+[3] suggest_outfit
+     in:  {new_item: Graphic Tee — 2003 Tour Bootleg Style [id=lst_006] ($24.0, depop), wardrobe: dict with keys: items}
+[4] create_fit_card
+     in:  {outfit: Here is a cool, effortless grunge-streetwear look using…, new_item: Graphic Tee — 2003 Tour Bootleg S…
+     out: Nothing beats finding the ultimate worn-in band tee. I styled this Graphic Tee — 2003 Tour Bootleg Style with …
 
+Fit card:
+Nothing beats finding the ultimate worn-in band tee. I styled this Graphic Tee — 2003 Tour Bootleg Style with double denim, baggy jeans, and combat boots for an effortless grunge look. Snagged it on Depop for just $24.0.
+```
+
+**Criterion 2, Try 1**
+
+```
+- stopped early: yes — No listings matched 'designer ballgown size XXS under $5'. Try different keywords (for example, designer ballgown) or raise/remove the price limit or size filter.
+- selected_item: (none)
+- search_results: 0
+[1] parse_query
+     in:  {query: designer ballgown size XXS under $5}
+     out: {description: designer ballgown, size: XXS, max_price: 5.0}
+[2] search_listings (via MCP)
+     in:  {description: designer ballgown, size: XXS, max_price: 5.0}
+     out: [] (empty)
+     →    empty; stopping before model-backed tools
+```
+
+**Criterion 3, Try 1**
+
+```
+- selected_item: Platform Sneakers — White Chunky Sole [id=lst_019] ($48.0, poshmark)
+[2] search_listings (via MCP)
+     out: 1 items: Platform Sneakers — White Chunky Sole [id=lst_019]
+[3] suggest_outfit
+     in:  {new_item: Platform Sneakers — White Chunky Sole [id=lst_019] ($48.0, poshmark), wardrobe: dict with keys: ite…
+```
+
+**Criterion 4, Try 1**
+
+```
+- selected_item: 90s Track Jacket — Navy/White Stripe [id=lst_004] ($45.0, poshmark)
+Fit card:
+Nothing beats finding the ultimate 90s Track Jacket — Navy/White Stripe for just $45. I threw it on over a ribbed tank and baggy denim for an effortless streetwear fit that I just listed on Poshmark. Go grab it before I change my mind and keep it!
+```
+
+Try 5 was the one miss: the card included the general item name, price, and platform, but omitted “Navy/White Stripe” from the selected title.
+
+**Criterion 5, Try 1**
+
+```
+- selected_item: Denim Jacket — Light Wash, Cropped [id=lst_007] ($42.0, poshmark)
+[1] parse_query
+     in:  {query: denim jacket under $50}
+     out: {description: denim jacket, size: None, max_price: 50.0}
+[2] search_listings (via MCP)
+     in:  {description: denim jacket, size: None, max_price: 50.0}
 ```
 
 ---
@@ -276,12 +338,37 @@ that produced it:
 **Happy path**
 
 ```
+[1] parse_query
+     in:  dict with keys: query
+     out: dict with keys: description, size, max_price
+[2] search_listings (via MCP)
+     in:  dict with keys: description, size, max_price
+     out: 4 items: 90s Track Jacket — Navy/White Stripe, 90s Leather Bomber — Black, 90s Silk Slip Dress — Floral, Midi Length … +1 more
+[3] suggest_outfit
+     in:  dict with keys: new_item, wardrobe
+     out: Here is a cool, effortless street-style look using your new track jacket: **The Outfit:** * **Top:** White …
+[4] create_fit_card
+     in:  dict with keys: outfit, new_item
+     out: Scored this 90s Track Jacket — Navy/White Stripe for just $45 on Poshmark, and it’s the ultimate throw-on-and-…
 
 ```
 
 **Empty search**
 
+[1] parse_query
+     in:  dict with keys: query
+     out: dict with keys: description, size, max_price
+[2] search_listings (via MCP)
+     in:  dict with keys: description, size, max_price
+     out: [] (empty)
+     →    empty; stopping before model-backed tools
 ```
+
+**Failure checks**
+
+- Empty search (`quantum dragon fruit spaceship`): “No listings matched 'quantum dragon fruit spaceship'. Try different keywords (for example, quantum dragon fruit spaceship) or raise/remove the price limit or size filter.” No model calls were made.
+- Empty wardrobe (`90s track jacket in size M --empty-wardrobe`): “That 90s Champion track jacket is a great find! Here are two easy ways to style it:” The model returned two suggestions, and the run also generated a fit card.
+- Model unavailable (`denim jacket under $50`, with one changed key character and cache disabled): “The model rejected your API key. Check GEMINI_API_KEY in your .env file, or create a fresh key at aistudio.google.com.” The run stopped cleanly after one model call; `.env` was restored byte-for-byte.
 
 ```
 
@@ -303,19 +390,75 @@ full. -->
 
 **What I changed:**
 
+In `tools.py::create_fit_card`, I rewrote the prompt to provide the listing title, price, and platform as separate fields. It now requires the full title verbatim and tells the model to format the supplied price with a leading dollar sign.
+
 **Which failure it was meant to fix:**
+
+The before run's fifth fit card omitted “Navy/White Stripe” from the selected title. The old prompt asked the model to mention the title, but did not say to copy the complete title exactly.
 
 ### Run Log — After
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. Matching query completes all three tools | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. Impossible query stops before the second tool | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. Selected listing is passed to outfit tool | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4. Fit card has correct item details | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 5. Search respects the price ceiling | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+
+**Real output from one try**, pasted as text from
+`results/run_2026-10-04_0048_after.md`, produced by
+`run_eval.py::write_report`; each captured run is from `agent.py::run_agent`.
+
+**Criterion 1, Try 1**
+
+```
+- stopped early: no
+- selected_item: Graphic Tee — 2003 Tour Bootleg Style [id=lst_006] ($24.0, depop)
+Fit card:
+Scored this ultimate Graphic Tee — 2003 Tour Bootleg Style for just $24.0 on depop! I styled it with baggy dark denim, a black jacket, and chunky white sneakers for an effortless, skate-inspired fit.
+```
+
+**Criterion 2, Try 1**
+
+```
+- stopped early: yes — No listings matched 'designer ballgown size XXS under $5'. Try different keywords (for example, designer ballgown) or raise/remove the price limit or size filter.
+- selected_item: (none)
+- search_results: 0
+[2] search_listings (via MCP)
+     in:  {description: designer ballgown, size: XXS, max_price: 5.0}
+     out: [] (empty)
+     →    empty; stopping before model-backed tools
+```
+
+**Criterion 3, Try 1**
+
+```
+- selected_item: Platform Sneakers — White Chunky Sole [id=lst_019] ($48.0, poshmark)
+[3] suggest_outfit
+     in:  {new_item: Platform Sneakers — White Chunky Sole [id=lst_019] ($48.0, poshmark), wardrobe: dict with keys: ite…
+```
+
+**Criterion 4, Try 1**
+
+```
+- selected_item: 90s Track Jacket — Navy/White Stripe [id=lst_004] ($45.0, poshmark)
+Fit card:
+Scored this 90s Track Jacket — Navy/White Stripe and already styling it two ways. Throw it over baggy denim and a ribbed tank for effortless streetwear, or dress it up with wide-leg khakis. Grab it over on poshmark for $45.00 before I change my mind!
+```
+
+**Criterion 5, Try 1**
+
+```
+- selected_item: Denim Jacket — Light Wash, Cropped [id=lst_007] ($42.0, poshmark)
+[1] parse_query
+     in:  {query: denim jacket under $50}
+     out: {description: denim jacket, size: None, max_price: 50.0}
+```
 
 **Did it help, and how do I know:**
+
+Yes. Criterion 4 improved from 4/5 before to 5/5 after: all five after cards included the complete selected title, price, and platform. The other four criteria stayed at 5/5. Both runs used the same scenarios with caching off; the fit-card prompt was the only behavior change.
 
 <!-- If it made things worse, say that. Honestly reported, that earns full
      credit and is more interesting than one that worked. -->
